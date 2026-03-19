@@ -3,7 +3,6 @@ import freighter from '@stellar/freighter-api';
 import * as StellarSdk from '@stellar/stellar-sdk';
 import {
   NETWORK_PASSPHRASE,
-  WISH_TOKEN_CONTRACT,
   WISH_MANAGER_CONTRACT,
   server
 } from './stellar';
@@ -64,7 +63,6 @@ function App() {
         .build();
 
       const simResult = await server.simulateTransaction(tx);
-
       if (simResult.error) throw new Error(simResult.error);
 
       let preparedTx;
@@ -116,7 +114,6 @@ function App() {
       if (!countSim.result) return;
 
       const count = Number(StellarSdk.scValToNative(countSim.result.retval));
-      setWishCount(count);
 
       const loadedWishes = [];
       for (let i = 1; i <= count; i++) {
@@ -132,22 +129,25 @@ function App() {
             .build();
 
           const wishSim = await server.simulateTransaction(wishTx);
-          if (wishSim.result) {
+          if (wishSim.result && !wishSim.error) {
             const raw = StellarSdk.scValToNative(wishSim.result.retval);
-            loadedWishes.push({
-              id: Number(raw.id),
-              title: typeof raw.title === 'string' ? raw.title : String(raw.title),
-              goalAmount: Number(raw.goal_amount),
-              fundedAmount: Number(raw.funded_amount),
-              creator: String(raw.creator),
-              isCompleted: Boolean(raw.is_completed),
-            });
+            if (raw && raw.id) {
+              loadedWishes.push({
+                id: Number(raw.id),
+                title: typeof raw.title === 'string' ? raw.title : String(raw.title),
+                goalAmount: Number(raw.goal_amount),
+                fundedAmount: Number(raw.funded_amount),
+                creator: String(raw.creator),
+                isCompleted: Boolean(raw.is_completed),
+              });
+            }
           }
         } catch (e) {
-          console.error('Error loading wish', i, e);
+          console.log(`Wish ${i} was removed, skipping`);
         }
       }
       setWishes(loadedWishes);
+      setWishCount(loadedWishes.length);
     } catch (err) {
       console.error('Load wishes error:', err);
     }
@@ -179,7 +179,7 @@ function App() {
     setLoading(false);
   };
 
- const fundWish = async (wishId) => {
+  const fundWish = async (wishId) => {
     if (!walletAddress) return showNotification('Connect wallet first!', 'error');
     const amount = parseInt(fundAmounts[wishId] || 0);
     if (!amount || amount <= 0) return showNotification('Enter valid amount!', 'error');
@@ -196,6 +196,25 @@ function App() {
     } catch (err) {
       console.error(err);
       showNotification('Failed to fund wish: ' + err.message, 'error');
+    }
+    setLoading(false);
+  };
+
+  const removeWish = async (wishId) => {
+    if (!walletAddress) return showNotification('Connect wallet first!', 'error');
+    setLoading(true);
+    try {
+      await invokeContract(WISH_MANAGER_CONTRACT, 'remove_wish', [
+        StellarSdk.nativeToScVal(walletAddress, { type: 'address' }),
+        StellarSdk.nativeToScVal(wishId, { type: 'u64' }),
+      ]);
+      setWishes(prev => prev.filter(w => w.id !== wishId));
+      setWishCount(prev => prev - 1);
+      showNotification('Wish removed successfully! 🗑️');
+      await loadWishes();
+    } catch (err) {
+      console.error(err);
+      showNotification('Failed to remove wish: ' + err.message, 'error');
     }
     setLoading(false);
   };
@@ -223,75 +242,75 @@ function App() {
       )}
 
       {/* Navbar */}
-      <nav className="flex items-center justify-between px-6 py-4 border-b border-gray-800">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl"
-            style={{ background: 'linear-gradient(135deg, #7c3aed, #ec4899)' }}>
-            🌟
-          </div>
-          <div>
-            <h1 className="text-white font-bold text-lg">ChainWish</h1>
-            <p className="text-gray-400 text-xs">On-chain Wishlist</p>
-          </div>
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={connectWallet}
-            className="px-5 py-2 rounded-xl text-white font-semibold text-sm transition-all hover:opacity-90"
-            style={{ background: 'linear-gradient(135deg, #7c3aed, #ec4899)' }}
-          >
-            {walletAddress ? `🔗 ${shortAddress(walletAddress)}` : '🔗 Connect Freighter Wallet'}
-          </button>
-          {walletAddress && (
-            <button
-              onClick={disconnectWallet}
-              className="px-4 py-2 rounded-xl text-gray-400 font-semibold text-sm border border-gray-700 hover:border-red-500 hover:text-red-400 transition-all"
-            >
-              Disconnect
-            </button>
-          )}
-        </div>
-      </nav>
-
-      {/* Hero Section */}
-{!walletAddress && (
-  <div className="flex flex-col items-center justify-center px-4 text-center py-16">
-    <div className="w-20 h-20 rounded-2xl flex items-center justify-center text-4xl mb-6"
+<nav className="flex items-center justify-between px-4 py-4 border-b border-gray-800">
+  <div className="flex items-center gap-2">
+    <div className="w-8 h-8 rounded-xl flex items-center justify-center text-lg"
       style={{ background: 'linear-gradient(135deg, #7c3aed, #ec4899)' }}>
       🌟
     </div>
-    <h2 className="text-5xl font-bold text-white mb-3">Welcome to ChainWish</h2>
-    <p className="text-gray-400 text-lg mb-2">Decentralized wishlist on Stellar blockchain</p>
-    <p className="text-gray-500 text-sm mb-8">Connect your Freighter wallet to get started</p>
-    <div className="flex flex-wrap justify-center gap-3 mb-8">
-      <span className="px-4 py-2 rounded-full text-sm font-medium text-white border border-gray-700">🔒 On-chain</span>
-      <span className="px-4 py-2 rounded-full text-sm font-medium text-white border border-gray-700">⚡ Real-time</span>
-      <span className="px-4 py-2 rounded-full text-sm font-medium text-white border border-gray-700">🌐 Decentralized</span>
+    <div>
+      <h1 className="text-white font-bold text-sm">ChainWish</h1>
+      <p className="text-gray-400 text-xs">On-chain Wishlist</p>
     </div>
-    <div className="grid grid-cols-3 gap-12 p-8 rounded-2xl border border-gray-800 w-full max-w-lg"
-      style={{ backgroundColor: '#1a1d2e' }}>
-      <div className="text-center">
-        <p className="text-2xl font-bold text-purple-400">WISH</p>
-        <p className="text-gray-400 text-sm mt-1">Token</p>
-      </div>
-      <div className="text-center border-x border-gray-700">
-        <p className="text-2xl font-bold text-pink-400">Testnet</p>
-        <p className="text-gray-400 text-sm mt-1">Network</p>
-      </div>
-      <div className="text-center">
-        <p className="text-2xl font-bold text-purple-400">{wishCount}</p>
-        <p className="text-gray-400 text-sm mt-1">Wishes</p>
-      </div>
-    </div>
+  </div>
+  <div className="flex gap-2">
     <button
       onClick={connectWallet}
-      className="mt-8 px-8 py-3 rounded-xl text-white font-semibold transition-all hover:opacity-90 text-base"
+      className="px-3 py-2 rounded-xl text-white font-semibold text-xs transition-all hover:opacity-90"
       style={{ background: 'linear-gradient(135deg, #7c3aed, #ec4899)' }}
     >
-      🔗 Connect Freighter Wallet
+      {walletAddress ? `🔗 ${shortAddress(walletAddress)}` : '🔗 Connect'}
     </button>
+    {walletAddress && (
+      <button
+        onClick={disconnectWallet}
+        className="px-3 py-2 rounded-xl text-gray-400 font-semibold text-xs border border-gray-700 hover:border-red-500 hover:text-red-400 transition-all"
+      >
+        Disconnect
+      </button>
+    )}
   </div>
-)}
+</nav>
+
+      {/* Hero Section */}
+      {!walletAddress && (
+        <div className="flex flex-col items-center justify-center px-4 text-center py-16">
+          <div className="w-20 h-20 rounded-2xl flex items-center justify-center text-4xl mb-6"
+            style={{ background: 'linear-gradient(135deg, #7c3aed, #ec4899)' }}>
+            🌟
+          </div>
+          <h2 className="text-5xl font-bold text-white mb-3">Welcome to ChainWish</h2>
+          <p className="text-gray-400 text-lg mb-2">Decentralized wishlist on Stellar blockchain</p>
+          <p className="text-gray-500 text-sm mb-8">Connect your Freighter wallet to get started</p>
+          <div className="flex flex-wrap justify-center gap-3 mb-8">
+            <span className="px-4 py-2 rounded-full text-sm font-medium text-white border border-gray-700">🔒 On-chain</span>
+            <span className="px-4 py-2 rounded-full text-sm font-medium text-white border border-gray-700">⚡ Real-time</span>
+            <span className="px-4 py-2 rounded-full text-sm font-medium text-white border border-gray-700">🌐 Decentralized</span>
+          </div>
+          <div className="grid grid-cols-3 gap-12 p-8 rounded-2xl border border-gray-800 w-full max-w-lg"
+            style={{ backgroundColor: '#1a1d2e' }}>
+            <div className="text-center">
+              <p className="text-2xl font-bold text-purple-400">WISH</p>
+              <p className="text-gray-400 text-sm mt-1">Token</p>
+            </div>
+            <div className="text-center border-x border-gray-700">
+              <p className="text-2xl font-bold text-pink-400">Testnet</p>
+              <p className="text-gray-400 text-sm mt-1">Network</p>
+            </div>
+            <div className="text-center">
+              <p className="text-2xl font-bold text-purple-400">{wishCount}</p>
+              <p className="text-gray-400 text-sm mt-1">Wishes</p>
+            </div>
+          </div>
+          <button
+            onClick={connectWallet}
+            className="mt-8 px-8 py-3 rounded-xl text-white font-semibold transition-all hover:opacity-90 text-base"
+            style={{ background: 'linear-gradient(135deg, #7c3aed, #ec4899)' }}
+          >
+            🔗 Connect Freighter Wallet
+          </button>
+        </div>
+      )}
 
       {/* Main App */}
       {walletAddress && (
@@ -366,12 +385,22 @@ function App() {
                       <h3 className="text-white font-bold text-lg">{wish.title}</h3>
                       <p className="text-gray-500 text-xs mt-1">by {shortAddress(wish.creator)}</p>
                     </div>
-                    {wish.isCompleted && (
-                      <span className="px-3 py-1 rounded-full text-xs font-bold text-white"
-                        style={{ background: 'linear-gradient(135deg, #7c3aed, #ec4899)' }}>
-                        ✅ Funded!
-                      </span>
-                    )}
+                    <div className="flex gap-2 items-center">
+                      {wish.creator === walletAddress && !wish.isCompleted && (
+                        <button
+                          onClick={() => removeWish(wish.id)}
+                          className="px-3 py-1 rounded-full text-xs font-bold text-red-400 border border-red-400 hover:bg-red-400 hover:text-white transition-all"
+                        >
+                          🗑️ Remove
+                        </button>
+                      )}
+                      {wish.isCompleted && (
+                        <span className="px-3 py-1 rounded-full text-xs font-bold text-white"
+                          style={{ background: 'linear-gradient(135deg, #7c3aed, #ec4899)' }}>
+                          ✅ Funded!
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div className="mb-3">
                     <div className="flex justify-between text-sm mb-1">

@@ -71,7 +71,6 @@ impl WishManager {
         assert!(!wish.is_completed, "wish already completed");
         assert!(amount > 0, "amount must be greater than 0");
 
-        // Inter-contract call to WishToken
         let token_contract: Address = env.storage()
             .instance()
             .get(&DataKey::TokenContract)
@@ -92,6 +91,21 @@ impl WishManager {
             .publish((symbol_short!("funded"),), (wish_id, funder, amount));
     }
 
+    pub fn remove_wish(env: Env, caller: Address, wish_id: u64) {
+        caller.require_auth();
+        let wish: Wish = env.storage()
+            .persistent()
+            .get(&DataKey::Wish(wish_id))
+            .unwrap();
+        assert!(wish.creator == caller, "only creator can remove wish");
+        assert!(!wish.is_completed, "cannot remove completed wish");
+        env.storage()
+            .persistent()
+            .remove(&DataKey::Wish(wish_id));
+        env.events()
+            .publish((symbol_short!("removed"),), (wish_id, caller));
+    }
+
     pub fn get_wish(env: Env, wish_id: u64) -> Wish {
         env.storage()
             .persistent()
@@ -106,9 +120,6 @@ impl WishManager {
             .unwrap_or(0)
     }
 }
-
-
-
 
 #[cfg(test)]
 mod test {

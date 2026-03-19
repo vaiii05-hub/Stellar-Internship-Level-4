@@ -5,8 +5,7 @@ export const HORIZON_URL = 'https://horizon-testnet.stellar.org';
 export const RPC_URL = 'https://soroban-testnet.stellar.org';
 
 export const WISH_TOKEN_CONTRACT = 'CBLNIJAJDC4OZXJ7BW4374WQGSPMSU4SOCNUXPUW53WTM6TN76PK5J3B';
-export const WISH_MANAGER_CONTRACT = 'CDSIP3QT33CUFSSAI75CBHDJU5BID4DUDCOEBTGUPUR7WW4TILBKM7QS';
-
+export const WISH_MANAGER_CONTRACT = 'CDVWSXTOL2IJQIVTPTD3BKPNER3SIKWITVECX6WPWNMG3O66G6DZ4CUS';
 let server;
 try {
   if (StellarSdk.rpc && StellarSdk.rpc.Server) {
