@@ -302,13 +302,7 @@ function App() {
               <p className="text-gray-400 text-sm mt-1">Wishes</p>
             </div>
           </div>
-          <button
-            onClick={connectWallet}
-            className="mt-8 px-8 py-3 rounded-xl text-white font-semibold transition-all hover:opacity-90 text-base"
-            style={{ background: 'linear-gradient(135deg, #7c3aed, #ec4899)' }}
-          >
-            🔗 Connect Freighter Wallet
-          </button>
+          
         </div>
       )}
 
