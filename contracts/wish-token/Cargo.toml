@@ -22,6 +22,5 @@ panic = "abort"
 codegen-units = 1
 lto = true
 
-
 [package.metadata.stellar]
 target = "wasm32v1-none"
